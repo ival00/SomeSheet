@@ -1,21 +1,24 @@
-#!/usr/bin/perl
+#!/usr/bin/env perl
+
 use strict;
 use warnings;
+use feature 'postderef';
+no warnings qw(experimental::postderef);
+
 use LWP::UserAgent ();
 use Getopt::Long;
 use Pod::Usage;
+use Try::Tiny;
+use JSON;
 
 use constant {
     UA_TIMEOUT => 20,
+	Offset=>12,
 };
-my @arr;
-my $s;
-my $st;
-my $i;
-my $url;
-my $response;
-my $browser = LWP::UserAgent->new;
+
 my $usr = '';
+my @Repos='';
+
 
 GetOptions(
     'user=s' => \$usr,
@@ -24,27 +27,29 @@ or pod2usage(1);
 
 pod2usage(1) unless length($usr);
 
-my $ua = LWP::UserAgent->new();
-$ua->timeout( UA_TIMEOUT );
-$url="https://api.github.com/users/".$usr."/repos";
+my $url = "https://api.github.com/users/$usr/repos";
+my $ua  = LWP::UserAgent->new();
 
-$response = $browser->get( $url );
+$ua->timeout( UA_TIMEOUT );
+
+
+my $response = $ua->get( $url );
+
 die "Can't get $url -- ", $response->status_line
 unless $response->is_success;
-$s=$response->content;
-$i=0;
-while ($i<length($s)-13){
-	$st='';
-		if (substr ($s,$i,10) eq 'full_name"'){
-		$i=$i+12;
-		while (substr($s,$i,1) ne '"') {
-		$st=$st.substr($s,$i++,1);
-		}
-	push (@arr, $st);
-	}
-	++$i;
+
+my $repos;
+
+try {
+    $repos = from_json $response->content;
 }
-foreach $i (@arr) {printf "$i\n"};
+catch {
+    die "Can't parse json string: $_";
+};
+
+foreach my $repo ( $repos->@* ) {
+    print "$repo->{name}\n";
+}
 
 __END__
 
@@ -57,5 +62,5 @@ github user stats scrapper
 screpper.pl [options]
 
 Options:
-    --user github_user
+    --user=github_user
 =cut
